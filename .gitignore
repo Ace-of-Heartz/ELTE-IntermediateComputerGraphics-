@@ -1,0 +1,12 @@
+
+# Nix/NixOS
+/.direnv/
+
+# CMake
+/cmake-build-debug/
+/result/
+
+/imgui.ini
+
+# IDE dot files
+/.idea/
