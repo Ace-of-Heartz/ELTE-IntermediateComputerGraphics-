@@ -60,8 +60,17 @@ void CMyApp::InitGeometry()
 	};
 
 	// Suzanne
+	BezierNxM<3,3> b = BezierNxM<3,3>(
+		std::array<std::array<glm::vec3,3>, 3>{
+			std::array<glm::vec3, 3>{glm::vec3(1.0,0.0,1.0),glm::vec3(0.0,0.0,0.0),glm::vec3(-1.0,0.0,1.0)},
+			std::array<glm::vec3, 3>{glm::vec3(0.0,0.0,0.0),glm::vec3(0.0,1.0,0.0),glm::vec3(0.0,0.0,0.0)},
+			std::array<glm::vec3, 3>{glm::vec3(1.0,0.0,-1.0),glm::vec3(0.0,0.0,0.0),glm::vec3(-1.0,0.0,-1.0)},
 
-	MeshObject<Vertex> SurfaceMeshCPU = GetParamSurfMesh( Sphere() );
+		}
+	);
+
+
+	MeshObject<Vertex> SurfaceMeshCPU = GetParamSurfMesh( b );
 	m_SurfaceGPU = CreateGLObjectFromMesh( SurfaceMeshCPU, vertexAttribList );
 }
 

@@ -4,12 +4,15 @@
 #ifndef PARAMETRICSURFACES_H
 #define PARAMETRICSURFACES_H
 
+#include <iostream>
 #include <glm/glm.hpp>
+
+
 
 
 class ParamSurf {
 public:
-    [[nodiscard]] virtual glm::vec3 GetPos(float u,float v) const noexcept;
+    [[nodiscard]] virtual glm::vec3 GetPos(float u,float v) const noexcept = 0;
     [[nodiscard]] virtual glm::vec3 GetNorm(float u, float v) const noexcept {
         float const h = ParamSurf::GetOffset();
 
@@ -55,61 +58,57 @@ public:
     // }
 };
 
-template <int N>
-class Bezier : public ParamSurf {
+
+
+
+template <int N,int M>
+class BezierNxM : public ParamSurf {
 public:
-    explicit Bezier(std::array<std::array<glm::vec3,N>,N> ps) : m_ps(ps){}
+    explicit BezierNxM(std::array<std::array<glm::vec3,M>,N> ps) : m_ps(ps){}
+    ~BezierNxM() {
+    }
 
     [[nodiscard]] glm::vec3 GetPos( float u, float v ) const noexcept override {
-
-        auto res = GetCoeff(u, v);
-
-        auto Bu = res[0];
-        auto Bv = res[1];
-        auto pos = glm::vec3(0.0f);
-        for (int i = 0;i < N; ++i) {
-            for (int j = 0; j < N; ++j) {
-                pos += m_ps[i][j] * Bu[i] * Bv[j];
-            }
-        }
-        return pos;
+        return DeCasteljau2D(v,u);
     }
 
 private:
-    std::tuple<std::array<float,N>> GetCoeff(float u, float v) const{
-        std::array<float,N> Bu;
-        std::array<float,N> Bv;
+    glm::vec3 DeCasteljau2D(float t,float s) const {
+        std::array<std::array<glm::vec3,M>,N> bs = m_ps;
 
-        float nFact = 1.0f;
-        for (float i = 2;i < N;++i) {
-            nFact *= i;
-        }
-        for (int k = 0;k <= floor(N / 2.);++k) {
-
-            float kF = k;
-            float kFact1 = 1.0f;
-            float kFact2 = 1.0f;
-            for (float i = 2.f;i < kF;++i) {
-                kFact1 *= i;
-
+        for (int k = 0; k < N; ++k) {
+            std::array<glm::vec3,M> b_temp = std::array<glm::vec3,M>();
+            for (int j = 1; j < M; ++j ) {
+                for (int i = 0; i < M-j; ++i) {
+                    {
+                        b_temp[i] = bs[k][i] * (1-t) + bs[k][i+1] * t;
+                    }
+                }
+                bs[k] = b_temp;
             }
-            for (float i = 2.f;i <= N-kF;++i) {
-                kFact2 *= i;
-            }
-
-            Bu[k] = pow(u,k) * pow((1-u),N-k) * (nFact / kFact1 / kFact2);
-            Bu[N-k] = pow(u,N-k) * pow((1-u),k) * (nFact / kFact1 / kFact2);
-
-            Bv[k] = pow(u,k) * pow(v,k) * (nFact / kFact1 / kFact2);
-            Bv[N-k] = pow(u,N-k) * pow(v,k) * (nFact / kFact1 / kFact2);
         }
-        return std::make_tuple(Bu,Bv);
+
+        std::array<glm::vec3, N> temp_bs = std::array<glm::vec3, N>();
+        for(int k = 0; k < N; ++k) {
+            temp_bs[k] = bs[k][0];
+        }
+
+        std::array<glm::vec3 ,N> b_temp = std::array<glm::vec3,N>();
+        for (int j = 1; j < N; ++j) {
+            for (int i = 0; i < N-j; ++i) {
+                b_temp[i] = temp_bs[i] * (1-s) + temp_bs[i+1] * s;
+            }
+            temp_bs = b_temp;
+        }
+        return  temp_bs[0];
     }
 
-    std::array<std::array<glm::vec3,N>,N> m_ps;
-
-
+    std::array<std::array<glm::vec3,M>,N> m_ps;
 
 };
+
+
+
+
 
 #endif //PARAMETRICSURFACES_H
