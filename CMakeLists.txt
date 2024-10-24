@@ -3,6 +3,8 @@ project(ParametricSurface)
 
 set(CMAKE_CXX_STANDARD 20)
 
+set(CMAKE_BUILD_TYPE Debug)
+
 file(GLOB_RECURSE SOURCE_FILES
         ${CMAKE_SOURCE_DIR}/src/*.c
         ${CMAKE_SOURCE_DIR}/src/*.cpp)
@@ -29,16 +31,28 @@ message(STATUS "SDL2 included at ${SDL2_INCLUDE_DIR}")
 find_package(SDL2_image REQUIRED)
 
 find_package(imgui REQUIRED)
-#set(LIBS ${SDL2_LIBRARY} ${GLEW_LIBRARY})
 
+add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+                ${CMAKE_SOURCE_DIR}/Shaders
+                ${CMAKE_BINARY_DIR}/Shaders
+        COMMENT "Copy shaders directory to result directory")
+
+add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+            ${CMAKE_SOURCE_DIR}/Assets
+            ${CMAKE_BINARY_DIR}/Assets
+    COMMENT "Copy assets directory to result directory")
+
+string(REPLACE "-O2" "-Os" CMAKE_CXX_FLAGS_RELEASE ${CMAKE_CXX_FLAGS_RELEASE})
 # Define the include DIRs
 include_directories(
         "${CMAKE_SOURCE_DIR}/src"
         "${CMAKE_SOURCE_DIR}/includes"
+        Shaders
 )
 
 # Define the link libraries
-#target_link_libraries(${PROJECT_NAME} ${LIBS})
 target_link_libraries(${PROJECT_NAME} PRIVATE
         SDL2::SDL2
         GLEW::glew

@@ -1,5 +1,5 @@
 {
-  description = "OpenCL Development for GPGPU";
+  description = "Basic C++ flake nix";
 
   inputs = {
     nixpkgs = {
