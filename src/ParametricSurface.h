@@ -49,6 +49,8 @@ public:
         v = glm::two_pi<float>() * v;
         return {sin(u) * cos(v),sin(u) * sin(v), cos(u)};
     }
+
+    // TODO: Debug sphere norm
     // [[nodiscard]] glm::vec3 GetNorm( float u, float v ) const noexcept override
     // {
     //     glm::vec3 const du = {cos(u) * cos(v), cos(u) * sin(v), -sin(u)};
@@ -58,15 +60,35 @@ public:
     // }
 };
 
+class Bezier3x3 : public ParamSurf {
+public:
+    explicit Bezier3x3(std::array<std::array<glm::vec3,3>,3> ps) : m_ps(ps) {}
+    ~Bezier3x3() {}
 
+    [[nodiscard]] glm::vec3 GetPos(float u, float v) const noexcept override {
+        float Bu[3] = {(1-u) * (1-u), (1-u) * u * 2, u * u };
+        float Bv[3] = {(1-v) * (1-v), (1-v) * v * 2, v * v };
+
+        glm::vec3 sum = glm::vec3(0,0,0);
+        for(int i = 0; i < 3; ++i) {
+            for(int j = 0; j < 3; ++i) {
+                sum += Bu[i] * Bv[j] * m_ps[i][j];
+            }
+        }
+        return sum;
+    }
+
+private:
+    std::array<std::array<glm::vec3,3>,3> m_ps;
+
+};
 
 
 template <int N,int M>
 class BezierNxM : public ParamSurf {
 public:
     explicit BezierNxM(std::array<std::array<glm::vec3,M>,N> ps) : m_ps(ps){}
-    ~BezierNxM() {
-    }
+    ~BezierNxM() {}
 
     [[nodiscard]] glm::vec3 GetPos( float u, float v ) const noexcept override {
         return DeCasteljau2D(v,u);
