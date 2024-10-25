@@ -72,6 +72,7 @@ protected:
 	
 	// shaderekhez szükséges változók
 	GLuint m_programID = 0;		  // shaderek programja
+	GLuint m_programSkyboxID = 0; // skybox programja
 
 	// Fényforrás- ...
 	glm::vec4 m_lightPos = glm::vec4( 0.0f, 1.0f, 0.0f, 0.0f );
@@ -94,10 +95,13 @@ protected:
 	// Shaderek inicializálása, és törtlése
 	void InitShaders();
 	void CleanShaders();
-
+	void InitSkyboxShaders();
+	void CleanSkyboxShaders();
 	// Geometriával kapcsolatos változók
 
 	OGLObject m_SurfaceGPU = {};
+	OGLObject m_SuzanneGPU = {};
+	OGLObject m_SkyboxGPU = {};
 
 	// Geometria inicializálása, és törtlése
 	void InitGeometry();
@@ -109,8 +113,13 @@ protected:
     GLuint m_SamplerID = 0;
 
 	GLuint m_TextureID = 0;
+	GLuint m_SuzanneTextureID = 0;
+	GLuint m_SkyboxTextureID = 0;
+
 
 	void InitTextures();
 	void CleanTextures();
+	void InitSkyboxTextures();
+	void CleanSkyboxTextures();
 };
 

@@ -40,12 +40,32 @@ void CMyApp::InitShaders()
 		.ShaderStage( GL_VERTEX_SHADER, "Shaders/Vert_PosNormTex.vert" )
 		.ShaderStage( GL_FRAGMENT_SHADER, "Shaders/Frag_Lighting.frag" )
 		.Link();
+	InitSkyboxShaders();
 
 }
+
+void CMyApp::InitSkyboxShaders()
+{
+	m_programSkyboxID = glCreateProgram();
+	ProgramBuilder{ m_programSkyboxID }
+	.ShaderStage(GL_VERTEX_SHADER, "Shaders/Vert_skybox.vert")
+	.ShaderStage(GL_FRAGMENT_SHADER, "Shaders/Frag_skybox_skeleton.frag")
+	.Link();
+
+}
+
 
 void CMyApp::CleanShaders()
 {
 	glDeleteProgram( m_programID );
+
+	CleanSkyboxShaders();
+
+}
+
+void CMyApp::CleanSkyboxShaders()
+{
+	glDeleteProgram( m_programSkyboxID );
 }
 
 
@@ -69,14 +89,79 @@ void CMyApp::InitGeometry()
 		}
 	);
 
+    BezierNxM<3,3> b2 = BezierNxM<3,3>(
+    	std::array<std::array<glm::vec3,3>, 3>{
+			std::array<glm::vec3, 3>{glm::vec3(-1.0,0.0,-1.0),glm::vec3(0.0,0.0,0.0),glm::vec3(-1.0,0.0,1.0)},
+			std::array<glm::vec3, 3>{glm::vec3(0.0,0.0,0.0),glm::vec3(0.0,-4.0,0.0),glm::vec3(0.0,0.0,0.0)},
+			std::array<glm::vec3, 3>{glm::vec3(1.0,0.0,-1.0),glm::vec3(0.0,0.0,0.0),glm::vec3(1.0,0.0,1.0)},
+
+		}
+    );
+
+    MeshObject<Vertex> suzanneMeshCPU = ObjParser::parse("Assets/Suzanne.obj");
+    m_SuzanneGPU = CreateGLObjectFromMesh(suzanneMeshCPU,vertexAttribList);
 
 	MeshObject<Vertex> SurfaceMeshCPU = GetParamSurfMesh( b );
 	m_SurfaceGPU = CreateGLObjectFromMesh( SurfaceMeshCPU, vertexAttribList );
+
+	InitSkyboxGeometry();
 }
 
 void CMyApp::CleanGeometry()
 {
 	CleanOGLObject( m_SurfaceGPU );
+    CleanOGLObject(m_SuzanneGPU);
+    CleanSkyboxGeometry();
+}
+
+void CMyApp::InitSkyboxGeometry()
+{
+	// skybox geo
+	MeshObject<glm::vec3> skyboxCPU =
+	{
+		std::vector<glm::vec3>
+		{
+			// hátsó lap
+			glm::vec3(-1, -1, -1),
+			glm::vec3( 1, -1, -1),
+			glm::vec3( 1,  1, -1),
+			glm::vec3(-1,  1, -1),
+			// elülső lap
+			glm::vec3(-1, -1, 1),
+			glm::vec3( 1, -1, 1),
+			glm::vec3( 1,  1, 1),
+			glm::vec3(-1,  1, 1),
+		},
+
+		std::vector<GLuint>
+		{
+			// hátsó lap
+			0, 1, 2,
+			2, 3, 0,
+			// elülső lap
+			4, 6, 5,
+			6, 4, 7,
+			// bal
+			0, 3, 4,
+			4, 3, 7,
+			// jobb
+			1, 5, 2,
+			5, 6, 2,
+			// alsó
+			1, 0, 4,
+			1, 4, 5,
+			// felső
+			3, 2, 6,
+			3, 6, 7,
+		}
+	};
+
+	m_SkyboxGPU = CreateGLObjectFromMesh( skyboxCPU, { { 0, offsetof( glm::vec3,x ), 3, GL_FLOAT } } );
+}
+
+void CMyApp::CleanSkyboxGeometry()
+{
+	CleanOGLObject( m_SkyboxGPU );
 }
 
 void CMyApp::InitTextures()
@@ -98,12 +183,61 @@ void CMyApp::InitTextures()
 	glTextureSubImage2D( m_TextureID, 0, 0, 0, Image.width, Image.height, GL_RGBA, GL_UNSIGNED_BYTE, Image.data() );
 
 	glGenerateTextureMipmap( m_TextureID );
+
+	ImageRGBA SuzanneImage = ImageFromFile( "Assets/wood.jpg" );
+
+	glCreateTextures( GL_TEXTURE_2D, 1, &m_SuzanneTextureID );
+	glTextureStorage2D( m_SuzanneTextureID, NumberOfMIPLevels( SuzanneImage ), GL_RGBA8, SuzanneImage.width, SuzanneImage.height );
+	glTextureSubImage2D( m_SuzanneTextureID, 0, 0, 0, SuzanneImage.width, SuzanneImage.height, GL_RGBA, GL_UNSIGNED_BYTE, SuzanneImage.data() );
+
+	glGenerateTextureMipmap( m_SuzanneTextureID );
+
+	InitSkyboxTextures();
+
 }
 
 void CMyApp::CleanTextures()
 {
 	glDeleteTextures( 1, &m_TextureID );
+	glDeleteTextures( 1, &m_SuzanneTextureID );
+
+	CleanSkyboxTextures();
 }
+
+void CMyApp::InitSkyboxTextures()
+{
+//	 skybox texture
+	 static const char* skyboxFiles[6] = {
+	 	"Assets/xpos.png",
+	 	"Assets/xneg.png",
+	 	"Assets/ypos.png",
+	 	"Assets/yneg.png",
+	 	"Assets/zpos.png",
+	 	"Assets/zneg.png",
+	 };
+
+	 ImageRGBA images[ 6 ];
+	 for ( int i = 0; i < 6; ++i )
+	 {
+	 	images[ i ] = ImageFromFile( skyboxFiles[ i ], false );
+	 }
+
+	 glCreateTextures( GL_TEXTURE_CUBE_MAP, 1, &m_SkyboxTextureID );
+	 glTextureStorage2D( m_SkyboxTextureID, 1, GL_RGBA8, images[ 0 ].width, images[ 0 ].height );
+
+	 for ( int face = 0; face < 6; ++face )
+	 {
+	 	glTextureSubImage3D( m_SkyboxTextureID, 0, 0, 0, face, images[ face ].width, images[ face ].height, 1, GL_RGBA, GL_UNSIGNED_BYTE, images[ face ].data() );
+	 }
+
+	 glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
+}
+
+void CMyApp::CleanSkyboxTextures()
+{
+	 glDeleteTextures( 1, &m_SkyboxTextureID );
+}
+
 
 bool CMyApp::Init()
 {
@@ -199,8 +333,8 @@ void CMyApp::Render()
 
     // - textúraegységek beállítása
     glProgramUniform1i( m_programID, ul( m_programID, "texImage" ), 0 );
-
-	// - Textúrák beállítása, minden egységre külön
+//
+//	// - Textúrák beállítása, minden egységre külön
 	glBindTextureUnit( 0, m_TextureID );
 	glBindSampler( 0, m_SamplerID );
 
@@ -211,11 +345,51 @@ void CMyApp::Render()
 	glUseProgram( m_programID );
 
 	// Rajzolási parancs kiadása
-	glDrawElements( GL_TRIANGLES,    
-					m_SurfaceGPU.count,			 
+	glDrawElements( GL_TRIANGLES,
+					m_SurfaceGPU.count,
 					GL_UNSIGNED_INT,
 					nullptr );
 
+	glBindTextureUnit( 0, m_SuzanneTextureID );
+	glBindSampler( 0, m_SamplerID );
+
+	// - VAO
+	glBindVertexArray( m_SuzanneGPU.vaoID );
+
+	// - Program
+	glUseProgram( m_programID );
+
+	// Rajzolási parancs kiadása
+	glDrawElements( GL_TRIANGLES,
+					m_SuzanneGPU.count,
+					GL_UNSIGNED_INT,
+					nullptr );
+
+
+	GLint prevDepthFnc;
+	glGetIntegerv(GL_DEPTH_FUNC, &prevDepthFnc);
+
+	// most kisebb-egyenlőt használjunk, mert mindent kitolunk a távoli vágósíkokra
+	glDepthFunc(GL_LEQUAL);
+
+	// - uniform parameterek
+	glProgramUniformMatrix4fv( m_programSkyboxID, ul( m_programSkyboxID,"viewProj"), 1, GL_FALSE, glm::value_ptr( m_camera.GetViewProj() ) );
+	glProgramUniformMatrix4fv( m_programSkyboxID, ul( m_programSkyboxID,"world"),    1, GL_FALSE, glm::value_ptr( glm::translate( m_camera.GetEye() ) ) );
+
+	// - VAO
+	glBindVertexArray( m_SkyboxGPU.vaoID );
+
+	// - Program
+	glUseProgram( m_programSkyboxID );
+
+	glProgramUniform1i(m_programSkyboxID,ul(m_programSkyboxID,"skyboxTexture"),0); //Programnak nem kell aktívnak lennie
+    glBindTextureUnit(0,m_SkyboxTextureID);
+	glBindSampler(0,m_SamplerID);
+
+	// - Rajzolas
+	glDrawElements( GL_TRIANGLES, m_SkyboxGPU.count, GL_UNSIGNED_INT, nullptr );
+
+	glDepthFunc(prevDepthFnc);
 	// shader kikapcsolasa
 	glUseProgram( 0 );
 
