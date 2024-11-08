@@ -40,7 +40,14 @@ void CMyApp::InitShaders()
 		.ShaderStage( GL_VERTEX_SHADER, "Shaders/Vert_PosNormTex.vert" )
 		.ShaderStage( GL_FRAGMENT_SHADER, "Shaders/Frag_Lighting.frag" )
 		.Link();
+	
 	InitSkyboxShaders();
+	
+	m_programAxis = glCreateProgram();
+	ProgramBuilder{ m_programAxis }
+		.ShaderStage(GL_VERTEX_SHADER, "Shaders/Vert_axes.vert")
+		.ShaderStage(GL_FRAGMENT_SHADER, "Shaders/Frag_PosCol.frag")
+		.Link();
 
 }
 
@@ -57,6 +64,7 @@ void CMyApp::InitSkyboxShaders()
 
 void CMyApp::CleanShaders()
 {
+	glDeleteProgram( m_programID );
 	glDeleteProgram( m_programID );
 
 	CleanSkyboxShaders();
@@ -82,9 +90,9 @@ void CMyApp::InitGeometry()
 	// Suzanne
 	BezierNxM<3,3> b = BezierNxM<3,3>(
 		std::array<std::array<glm::vec3,3>, 3>{
-			std::array<glm::vec3, 3>{glm::vec3(1.0,0.0,1.0),glm::vec3(0.0,0.0,0.0),glm::vec3(-1.0,0.0,1.0)},
-			std::array<glm::vec3, 3>{glm::vec3(0.0,0.0,0.0),glm::vec3(0.0,1.0,0.0),glm::vec3(0.0,0.0,0.0)},
-			std::array<glm::vec3, 3>{glm::vec3(1.0,0.0,-1.0),glm::vec3(0.0,0.0,0.0),glm::vec3(-1.0,0.0,-1.0)},
+			std::array<glm::vec3, 3>{glm::vec3(1.0,-2.0,1.0),glm::vec3(0.0,-2.0,1.0),glm::vec3(-1.0,-2.0,1.0)},
+			std::array<glm::vec3, 3>{glm::vec3(1.0,-2.0,0.0),glm::vec3(0.0,-1.0,0.0),glm::vec3(-1.0,-2.0,0.0)},
+			std::array<glm::vec3, 3>{glm::vec3(1.0,-2.0,-1.0),glm::vec3(0.0,-2.0,-1.0),glm::vec3(-1.0,-2.0,-1.0)},
 
 		}
 	);
@@ -110,7 +118,7 @@ void CMyApp::InitGeometry()
 void CMyApp::CleanGeometry()
 {
 	CleanOGLObject( m_SurfaceGPU );
-    CleanOGLObject(m_SuzanneGPU);
+    CleanOGLObject( m_SuzanneGPU );
     CleanSkyboxGeometry();
 }
 
@@ -270,6 +278,10 @@ bool CMyApp::Init()
 
 	m_cameraManipulator.SetCamera( &m_camera );
 
+
+	m_controlPoints.push_back(glm::vec3(-1.0f, 0.0, -1.0f));
+	m_controlPoints.push_back(glm::vec3( 1.0f, 0.0,  1.0f));
+
 	return true;
 }
 
@@ -292,6 +304,28 @@ void CMyApp::Update( const SUpdateInfo& updateInfo )
 	//m_lightPos = glm::vec4(5, 5, 5, 1);
 }
 
+void CMyApp::SetLightingUniforms( GLuint program, float Shininess, glm::vec3 Ka, glm::vec3 Kd, glm::vec3 Ks )
+{
+	// - Fényforrások beállítása
+	glProgramUniform3fv( program, ul( program, "cameraPos" ), 1, glm::value_ptr( m_camera.GetEye() ) );
+	glProgramUniform4fv( program, ul( program, "lightPos" ),  1, glm::value_ptr( m_lightPos ) );
+
+	glProgramUniform3fv( program, ul( program, "La" ),		 1, glm::value_ptr( m_La ) );
+	glProgramUniform3fv( program, ul( program, "Ld" ),		 1, glm::value_ptr( m_Ld ) );
+	glProgramUniform3fv( program, ul( program, "Ls" ),		 1, glm::value_ptr( m_Ls ) );
+
+	glProgramUniform1f( program, ul( program, "lightConstantAttenuation"	 ), m_lightConstantAttenuation );
+	glProgramUniform1f( program, ul( program, "lightLinearAttenuation"	 ), m_lightLinearAttenuation   );
+	glProgramUniform1f( program, ul( program, "lightQuadraticAttenuation" ), m_lightQuadraticAttenuation);
+
+	// - Anyagjellemzők beállítása
+	glProgramUniform3fv( program, ul( program, "Ka" ),		 1, glm::value_ptr( Ka ) );
+	glProgramUniform3fv( program, ul( program, "Kd" ),		 1, glm::value_ptr( Kd ) );
+	glProgramUniform3fv( program, ul( program, "Ks" ),		 1, glm::value_ptr( Ks ) );
+
+	glProgramUniform1f( program, ul( program, "Shininess" ),	Shininess );
+}
+
 void CMyApp::Render()
 {
 	// töröljük a frampuffert (GL_COLOR_BUFFER_BIT)...
@@ -306,30 +340,21 @@ void CMyApp::Render()
     // view és projekciós mátrix
     glProgramUniformMatrix4fv( m_programID, ul( m_programID, "viewProj" ), 1, GL_FALSE, glm::value_ptr( m_camera.GetViewProj() ) );
 
+    glm::vec3 pos1 = m_controlPoints[0];
+	glm::vec3 pos2 = m_controlPoints[1];
+    glm::vec3 current_pos = (1.f - m_currentParam) * pos1 + m_currentParam * pos2;
 
-    glm::mat4 matWorld = glm::translate( SUZANNE_POS );
+	glm::vec3 u = normalize(pos2 - pos1);
+	glm::vec3 v = glm::normalize(glm::cross(u,glm::vec3(0.,1.,0.)));
+	glm::vec3 w = glm::cross(u,v); // or glm::cross(v,u) -> this way we don't need to negate the value 
+	
+
+	glm::mat4 matWorld = glm::translate(current_pos) * glm::mat4(glm::mat3(-v,-w,u));
 
     glProgramUniformMatrix4fv( m_programID, ul( m_programID, "world" ), 1, GL_FALSE, glm::value_ptr( matWorld ) );
     glProgramUniformMatrix4fv( m_programID, ul( m_programID, "worldIT" ), 1, GL_FALSE, glm::value_ptr( glm::transpose( glm::inverse( matWorld ) ) ) );
 
-    // - Fényforrások beállítása
-    glProgramUniform3fv( m_programID, ul( m_programID, "cameraPos" ), 1, glm::value_ptr( m_camera.GetEye() ) );
-    glProgramUniform4fv( m_programID, ul( m_programID, "lightPos" ), 1, glm::value_ptr( m_lightPos ) );
-
-    glProgramUniform3fv( m_programID, ul( m_programID, "La" ), 1, glm::value_ptr( m_La ) );
-    glProgramUniform3fv( m_programID, ul( m_programID, "Ld" ), 1, glm::value_ptr( m_Ld ) );
-    glProgramUniform3fv( m_programID, ul( m_programID, "Ls" ), 1, glm::value_ptr( m_Ls ) );
-
-    glProgramUniform1f( m_programID, ul( m_programID, "lightConstantAttenuation" ), m_lightConstantAttenuation );
-    glProgramUniform1f( m_programID, ul( m_programID, "lightLinearAttenuation" ), m_lightLinearAttenuation );
-    glProgramUniform1f( m_programID, ul( m_programID, "lightQuadraticAttenuation" ), m_lightQuadraticAttenuation );
-
-    // - Anyagjellemzők beállítása
-    glProgramUniform3fv( m_programID, ul( m_programID, "Ka" ), 1, glm::value_ptr( m_Ka ) );
-    glProgramUniform3fv( m_programID, ul( m_programID, "Kd" ), 1, glm::value_ptr( m_Kd ) );
-    glProgramUniform3fv( m_programID, ul( m_programID, "Ks" ), 1, glm::value_ptr( m_Ks ) );
-
-    glProgramUniform1f( m_programID, ul( m_programID, "Shininess" ), m_Shininess );
+	SetLightingUniforms(m_programID,m_Shininess,m_Ka,m_Kd,m_Ks);
 
     // - textúraegységek beállítása
     glProgramUniform1i( m_programID, ul( m_programID, "texImage" ), 0 );
@@ -399,6 +424,37 @@ void CMyApp::Render()
 
 	// VAO kikapcsolása
 	glBindVertexArray( 0 );
+
+
+	glm::mat4 matWorld2 = glm::translate(pos1);
+
+	glDisable(GL_DEPTH_TEST);
+
+	glProgramUniform1f(m_programAxis, ul(m_programAxis, "mult"), 0.5f);
+
+	glProgramUniformMatrix4fv(m_programAxis, ul(m_programAxis, "viewProj"), 1, GL_FALSE, glm::value_ptr(m_camera.GetViewProj()));
+	glProgramUniformMatrix4fv(m_programAxis, ul(m_programAxis, "world"), 1, GL_FALSE, glm::value_ptr(matWorld));
+
+	glUseProgram(m_programAxis);
+
+	glDrawArrays(GL_LINES, 0, 6);
+
+	glEnable(GL_DEPTH_TEST);
+
+	matWorld2 = glm::translate(pos2);
+
+	glDisable(GL_DEPTH_TEST);
+
+	glProgramUniform1f(m_programAxis, ul(m_programAxis, "mult"), 0.5f);
+
+	glProgramUniformMatrix4fv(m_programAxis, ul(m_programAxis, "viewProj"), 1, GL_FALSE, glm::value_ptr(m_camera.GetViewProj()));
+	glProgramUniformMatrix4fv(m_programAxis, ul(m_programAxis, "world"), 1, GL_FALSE, glm::value_ptr(matWorld2));
+
+	glUseProgram(m_programAxis);
+
+	glDrawArrays(GL_LINES, 0, 6);
+
+	glEnable(GL_DEPTH_TEST);
 }
 
 void CMyApp::RenderGUI()
@@ -443,6 +499,16 @@ void CMyApp::RenderGUI()
 		}
 	}
 	ImGui::End();
+
+	
+	if (ImGui::Begin("Params"))
+	{
+		ImGui::SliderFloat("m_currentParam",&m_currentParam,0.f,1.f);
+		ImGui::DragFloat3("pos1",&m_controlPoints[0].x,0.1f);
+		ImGui::DragFloat3("pos2",&m_controlPoints[1].x,0.1f);
+
+		ImGui::End();
+	}
 }
 
 // https://wiki.libsdl.org/SDL2/SDL_KeyboardEvent
@@ -517,3 +583,39 @@ void CMyApp::OtherEvent( const SDL_Event& ev )
 
 }
 
+
+// Pozíció kiszámítása a kontrollpontok alapján
+glm::vec3 CMyApp::EvaluatePathPosition() const
+{
+	if (m_controlPoints.size() == 0) // Ha nincs pont, akkor visszaadjuk az origót
+		return glm::vec3(0);
+
+	const int interval = (const int)m_currentParam; // Melyik két pont között vagyunk?
+
+	if (interval < 0) // Ha a paraméter negatív, akkor a kezdőpontot adjuk vissza
+		return m_controlPoints[0];
+
+	if (interval >= m_controlPoints.size() - 1) // Ha a paraméter nagyobb, mint a pontok száma, akkor az utolsó pontot adjuk vissza
+		return m_controlPoints[m_controlPoints.size() - 1];
+
+	float localT = m_currentParam - interval; // A paramétert normalizáljuk az aktuális intervallumra
+	
+	return glm::mix( m_controlPoints[interval], m_controlPoints[interval + 1], localT ); // Lineárisan interpolálunk a két kontrollpont között
+}
+
+// Tangens kiszámítása a kontrollpontok alapján
+glm::vec3 CMyApp::EvaluatePathTangent() const
+{
+	if (m_controlPoints.size() < 2) // Ha nincs elég pont az interpolációhoy, akkor visszaadjuk az x tengelyt
+		return glm::vec3(1.0,0.0,0.0);
+
+	int interval = (int)m_currentParam; // Melyik két pont között vagyunk?
+
+	if (interval < 0) // Ha a paraméter negatív, akkor a kezdő intervallumot adjuk vissza
+		interval = 0;
+
+	if (interval >= m_controlPoints.size() - 1) // Ha a paraméter nagyobb, mint az intervallumok száma, akkor az utolsót adjuk vissza
+		interval = static_cast<int>( m_controlPoints.size() - 2 );
+
+	return glm::normalize(m_controlPoints[interval + 1] - m_controlPoints[interval]);
+}

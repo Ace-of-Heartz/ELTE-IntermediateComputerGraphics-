@@ -58,6 +58,27 @@ protected:
 
 	float m_ElapsedTimeInSec = 0.0f;
 
+
+	// Mozgás trajektória
+	float m_currentParam = 0.0;
+	static constexpr int MAX_POINT_COUNT = 20;
+	std::vector<glm::vec3> m_controlPoints;
+
+	glm::vec3 EvaluatePathPosition() const;
+	glm::vec3 EvaluatePathTangent() const;
+
+	// biztonsági üveg
+	static constexpr glm::vec3 GLASS_POSITION = glm::vec3( 0.0f, 0.0f, 21.0f );
+	static constexpr glm::vec4 GLASS_TRANSFORMS[4]=
+	{
+		// pozíció, forgatási szög
+		glm::vec4(  0.0f, 0.0f, 21.0f, 0.0f),
+		glm::vec4( 21.0f, 0.0f,  0.0f, glm::half_pi<float>()),
+		glm::vec4(  0.0f, 0.0f,-21.0f, glm::pi<float>()),
+		glm::vec4(-21.0f, 0.0f,  0.0f, glm::pi<float>() * 3.0f / 2.0f ),
+	};
+	static constexpr glm::vec3 GLASS_SCALE    = glm::vec3( 21.0, 10.5, 10.5 );
+
 	// Suzanne params
 
 	static constexpr glm::vec3 SUZANNE_POS = glm::vec3( 0.0f, 0.0f, 0.0f );
@@ -72,6 +93,7 @@ protected:
 	
 	// shaderekhez szükséges változók
 	GLuint m_programID = 0;		  // shaderek programja
+	GLuint m_programAxis = 0;
 	GLuint m_programSkyboxID = 0; // skybox programja
 
 	// Fényforrás- ...
@@ -121,5 +143,7 @@ protected:
 	void CleanTextures();
 	void InitSkyboxTextures();
 	void CleanSkyboxTextures();
+	
+	void SetLightingUniforms( GLuint program, float Shininess, glm::vec3 Ka = glm::vec3( 1.0 ), glm::vec3 Kd  = glm::vec3( 1.0 ), glm::vec3 Ks  = glm::vec3( 1.0 ) );
 };
 
