@@ -44,7 +44,7 @@ add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
             ${CMAKE_BINARY_DIR}/Assets
     COMMENT "Copy assets directory to result directory")
 
-string(REPLACE "-O2" "-Os" CMAKE_CXX_FLAGS_RELEASE ${CMAKE_CXX_FLAGS_RELEASE})
+#string(REPLACE "-O2" "-Os" CMAKE_CXX_FLAGS_RELEASE ${CMAKE_CXX_FLAGS_RELEASE})
 # Define the include DIRs
 include_directories(
         "${CMAKE_SOURCE_DIR}/src"
