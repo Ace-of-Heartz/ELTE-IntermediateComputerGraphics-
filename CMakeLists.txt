@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.29)
-project(ParametricSurface)
+project(elte_int_comp_graph)
 
 set(CMAKE_CXX_STANDARD 20)
 
